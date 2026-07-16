@@ -36,10 +36,12 @@
 #endif
 
 
-void InitialFsOperations(struct fs_traversal_context *ctx) {
-  InitializeDataDirectory(ctx);
+bool InitialFsOperations(struct fs_traversal_context *ctx) {
+  if (!InitializeDataDirectory(ctx))
+    return false;
   InitializeWarningFile(ctx);
   InitializeGarbageCollection(ctx);
+  return true;
 }
 
 void FinalizeFsOperations(struct fs_traversal_context *ctx) {

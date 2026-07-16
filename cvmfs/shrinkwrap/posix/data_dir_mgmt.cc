@@ -5,25 +5,39 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "helpers.h"
 #include "shrinkwrap/fs_traversal_interface.h"
+#include "util/logging.h"
 #include "util/posix.h"
 
 /**
  * Method which recursively creates the .data subdirectories
+ *
+ * Returns false (and logs the reason) on the first directory that could
+ * not be created, instead of aborting the process.
  */
-void PosixCheckDirStructure(std::string cur_path,
+bool PosixCheckDirStructure(std::string cur_path,
                             mode_t mode,
                             unsigned depth = 1) {
   std::string max_dir_name = std::string(kDigitsPerDirLevel, 'f');
   // Build current base path
   if (depth == 1) {
-    bool res1 = MkdirDeep(cur_path.c_str(), mode);
-    assert(res1);
+    if (!MkdirDeep(cur_path.c_str(), mode)) {
+      LogCvmfs(kLogCvmfs, kLogStderr,
+               "Failed to create data directory '%s': %s",
+               cur_path.c_str(), strerror(errno));
+      return false;
+    }
   } else {
     int res = mkdir(cur_path.c_str(), mode);
-    assert(res == 0 || errno == EEXIST);
+    if (res != 0 && errno != EEXIST) {
+      LogCvmfs(kLogCvmfs, kLogStderr,
+               "Failed to create data directory '%s': %s",
+               cur_path.c_str(), strerror(errno));
+      return false;
+    }
   }
   // Build template for directory names:
   assert(kDigitsPerDirLevel <= 99);
@@ -44,19 +58,28 @@ void PosixCheckDirStructure(std::string cur_path,
         snprintf(hex, sizeof(hex), dir_name_template, i);
         std::string this_path = cur_path + "/" + std::string(hex);
         int res = mkdir(this_path.c_str(), mode);
-        assert(res == 0 || errno == EEXIST);
+        if (res != 0 && errno != EEXIST) {
+          LogCvmfs(kLogCvmfs, kLogStderr,
+                   "Failed to create data directory '%s': %s",
+                   this_path.c_str(), strerror(errno));
+          return false;
+        }
         // Once directory created: Prepare substructures
-        PosixCheckDirStructure(this_path, mode, depth + 1);
+        if (!PosixCheckDirStructure(this_path, mode, depth + 1))
+          return false;
       }
       break;
     } else {
       // Directories on this level fully created; check ./
-      PosixCheckDirStructure(cur_path + "/" + max_dir_name, mode, depth + 1);
+      if (!PosixCheckDirStructure(cur_path + "/" + max_dir_name, mode,
+                                  depth + 1))
+        return false;
     }
   }
+  return true;
 }
 
-void InitializeDataDirectory(struct fs_traversal_context *ctx) {
+bool InitializeDataDirectory(struct fs_traversal_context *ctx) {
   // NOTE(steuber): Can we do this in parallel?
-  PosixCheckDirStructure(ctx->data, 0700);
+  return PosixCheckDirStructure(ctx->data, 0700);
 }

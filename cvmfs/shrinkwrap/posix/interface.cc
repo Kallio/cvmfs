@@ -746,7 +746,16 @@ struct fs_traversal_context *posix_initialize(const char *repo,
   }
 
   // Initializes Data Directory, Garbage Collection and Warning file
-  InitialFsOperations(result);
+  if (!InitialFsOperations(result)) {
+    free(result->repo);
+    free(result->base);
+    free(result->data);
+    free(result->config);
+    free(result->lib_version);
+    delete posix_ctx;
+    delete result;
+    return NULL;
+  }
   return result;
 }
 

@@ -20,7 +20,10 @@
  * Method which initializes the .data directory with all subdirectories.
  * Depending on kDirLevels and kDigitsPerDirLevel (defined in helpers.h)
  * this process might be very slow.
+ *
+ * Returns false (and logs the reason) if the directory structure could
+ * not be created, e.g. because of missing permissions.
  */
-void InitializeDataDirectory(struct fs_traversal_context *ctx);
+bool InitializeDataDirectory(struct fs_traversal_context *ctx);
 
 #endif  // CVMFS_SHRINKWRAP_POSIX_DATA_DIR_MGMT_H_
